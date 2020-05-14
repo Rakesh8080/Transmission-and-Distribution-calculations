@@ -1,0 +1,205 @@
+import math
+import matplotlib.pyplot as plt
+import cmath
+
+i = ((-1) ** .5)
+
+
+def polar(z):
+    a = z.real
+    b = z.imag
+    q = math.hypot(a, b)
+    theta = math.atan2(b, a)
+    return q, theta
+
+
+def inductance(xx, yy):
+    return float(2 * (10 ** (-4)) * math.log((xx / yy), math.e))
+
+
+def capacitance(xx, yy):
+    return float(((2 * 8.8541878128 * math.pi) * 10 ** (-9)) / math.log((xx / yy), math.e))
+
+
+sys = int(input("1. Type of the system - For Symmetrical Spacing                PRESS - 1 \n"
+                "                        For Unsymmetrical Spacing (transposed) PRESS - ANY OTHER NUMBER \n"))
+if sys == 1:
+    d = float(input("2. Spacing between the phase conductors in Meters : "))
+    deq = 0
+else:
+    s1 = float(input("2.1 Spacing between the phase conductor 1 and 2 in Meters : "))
+    s2 = float(input("2.2 Spacing between the phase conductor 2 and 3 in Meters : "))
+    s3 = float(input("2.3 Spacing between the phase conductor 3 and 1 in Meters : "))
+    d = 0
+    deq = float(pow((s1 * s2 * s3), (1 / 3)))
+
+sub_conductors = int(input("3. Number of sub-conductors per bundle (Choose Between 2,3,4,6) : "))
+spacing = float(input("4. Spacing between the sub-conductors in cm : "))
+strands = int(input("5. Number of strands in each sub conductor : "))
+diameter = float(input("6. Diameter of each strand in mm : "))
+length = float(input("7. Length of the line in km : "))
+mode = int(input("8. Model of the line - For Short      PRESS - 1\n"
+                 "                       For nominal pi PRESS - 2\n"
+                 "                       For long       PRESS - ANY OTHER NUMBER\n "))
+
+res = float(input("9. Resistance of the line per km in Ohm : "))
+freq = float(input("10. Power Frequency in Hz : "))
+volt = float(input("11. Nominal System Voltage in kV : "))
+load = float(input("12. Receiving end load in MW : "))
+pf = float(input("13. Power factor of receiving end load : "))
+
+spacing = spacing * (10 ** (-2))
+n = .5 + ((1 / 6) * (((12 * strands) - 3) ** (1 / 2)))
+r1 = (((2 * n) - 1) * diameter) * (10 ** (-3)) / 2
+r = float(0.7788 * r1)
+resistance = res * length
+
+# INDUCTANCE & CAPACITANCE (output 1,2)
+system = sys
+L = CAP = XL = XC = 0
+if system == 1:
+    L = inductance(d, r)
+    CAP = capacitance(d, r1)
+    XL = 2 * math.pi * L * freq * length
+    XC = 1 / (2 * math.pi * CAP * freq * length)
+else:
+    if sub_conductors == 2:
+        sgm = float(math.sqrt(r * spacing))
+        sgmd = float(math.sqrt(r1 * spacing))
+        L = inductance(deq, sgm)
+        CAP = capacitance(deq, sgmd)
+        XL = 2 * math.pi * L * freq * length
+        XC = 1 / (2 * math.pi * CAP * freq * length)
+    elif sub_conductors == 3:
+        sgm = float(pow((r * spacing * spacing), (1 / 3)))
+        sgmd = float(pow((r1 * spacing * spacing), (1 / 3)))
+        L = inductance(deq, sgm)
+        CAP = capacitance(deq, sgmd)
+        XL = 2 * math.pi * L * freq * length
+        XC = 1 / (2 * math.pi * CAP * freq * length)
+    elif sub_conductors == 4:
+        sgm = float(pow((r * 1.414 * spacing * spacing * spacing), 0.25))
+        sgmd = float(pow((r1 * 1.414 * spacing * spacing * spacing), 0.25))
+        L = inductance(deq, sgm)
+        CAP = capacitance(deq, sgmd)
+        XL = 2 * math.pi * L * freq * length
+        XC = 1 / (2 * math.pi * CAP * freq * length)
+    else:
+        sgm = float(pow((6 * r * spacing * spacing * spacing * spacing * spacing), (1 / 6)))
+        sgmd = float(pow((6 * r1 * spacing * spacing * spacing * spacing * spacing), (1 / 6)))
+        L = inductance(deq, sgm)
+        CAP = capacitance(deq, sgmd)
+        XL = 2 * math.pi * L * freq * length
+        XC = 1 / (2 * math.pi * CAP * freq * length)
+
+# REACTANCE (output 3, 4)
+Z = complex((resistance/1000),  (XL / 1000))
+Y = complex(0, 1000/XC)
+IR = load * 1000 / ((3 ** .5) * volt * pf)
+
+# output 5,6,7,8,9,10,11
+
+if mode == 1:
+    A1 = D1 = 1
+    B1 = Z
+    C1 = 0
+    A = abs(A1)
+    B = abs(B1)
+    C = abs(C1)
+    D = abs(D1)
+    IC = 0
+    VS = (A1 * volt) + (B1 * IR * (3 ** .5))
+    IS = IR
+    VS = abs(VS)
+    IS = abs(IS)
+    V_REG = ((VS - volt) * 100) / volt
+    P_LOSS = (3 * (IR ** 2) * resistance) / (10 ** 6)
+    efficiency = (load * 100) / (load + P_LOSS)
+    a1 = 0
+    a2 = math.atan(XL / resistance)
+    c1 = ((-1) * (A / B) * (volt ** 2) * (math.cos(a2 - a1)))
+    c2 = ((D / B) * (VS ** 2) * (math.sin(a2 - a1)))
+    d1 = ((D / B) * (VS ** 2) * (math.cos(a2 - a1)))
+    d2 = ((D / B) * (VS ** 2) * (math.sin(a2 - a1)))
+    k = (volt * VS) / B
+elif mode == 2:
+    A1 = D1 = 1 + ((Y * Z) / 2)
+    B1 = Z
+    C1 = Y * (1 + ((Y * Z) / 4))
+    A = abs(A1)
+    B = abs(B1)
+    C = abs(C1)
+    D = abs(D1)
+    VS = (A1 * volt) + (B1 * IR * (3 ** .5))
+    IS = (C1 * (volt / (3 ** .5))) + (D1 * IR)
+    VS = abs(VS)
+    IS = abs(IS)
+    IC = (volt + VS)*1000 / (2*XC)
+    IL = IR + (VS / (XC * 2))
+    VX = VS / A
+    V_REG = ((VX - volt) * 100) / volt
+    P_LOSS = (3 * (IL ** 2) * resistance) / (10 ** 6)
+    efficiency = (load * 100) / (load + P_LOSS)
+    a1 = math.atan((abs(Y) * XL) / (2 + (abs(Y) * resistance)))
+    a2 = math.atan(XL / resistance)
+    c1 = ((-1) * (A / B) * (volt ** 2) * (math.cos(a2 - a1)))
+    c2 = ((1 / B) * (VS ** 2) * (math.sin(a2 - a1)))
+    d1 = ((D / B) * (VS ** 2) * (math.cos(a2 - a1)))
+    d2 = ((D / B) * (VS ** 2) * (math.sin(a2 - a1)))
+    k = (volt * VS) / B
+else:
+    A1 = D1 = cmath.cosh((cmath.sqrt(Y * Z)))
+    B1 = cmath.sqrt(Z / Y) * cmath.sinh(cmath.sqrt(Y * Z))
+    C1 = cmath.sqrt(Y / Z) * cmath.sinh(cmath.sqrt(Y * Z))
+    A = abs(A1)
+    B = abs(B1)
+    C = abs(C1)
+    D = abs(D1)
+    IC = C * volt
+    VS = (A1 * volt) + (B1 * IR * (3 ** .5))
+    IS = (C1 * (volt / (3 ** .5))) + (D1 * IR)
+    VS = abs(VS)
+    IS = abs(IS)
+    VX = VS / A
+    V_REG = ((VX - volt) * 100) / volt
+    P_LOSS = (3 * (IS ** 2) * resistance) / (10 ** 6)
+    efficiency = (load * 100) / (load + P_LOSS)
+    l1 = math.sqrt(((abs(Z) + resistance) * abs(Y)) / 2)
+    l2 = math.sqrt((resistance - (abs(Z)) * abs(Y)) / 2)
+    a1 = math.atan((math.tan(l2)) * (math.tanh(l1)))
+    a2 = math.atan((math.tan(l2)) / (math.tanh(l1)))
+    c1 = ((-1) * (A / B) * (volt * 2) * (math.cos(a2 - a1)))
+    c2 = ((D / B) * (VS ** 2) * (math.sin(a2 - a1)))
+    d1 = ((D / B) * (VS ** 2) * (math.cos(a2 - a1)))
+    d2 = ((D / B) * (VS ** 2) * (math.sin(a2 - a1)))
+    k = (volt * VS) / B
+
+# outputs
+print("\n\n\n\n\n                             OUTPUTS       \n")
+print("1. Inductance per phase per km in H/km                    : " + str(L))
+print("2. Capacitance per phase per km in F/km                   : " + str(CAP))
+print("3. Inductive reactance of the line in Ohm                 : " + str(XL))
+print("4. Capacitive reactance of the line in Ohm                : " + str(XC))
+print("5. Charging current drawn from the sending end substation in A : " + str(IC))
+print("6. ABCD parameters of the line are                        : ""A (Unitless) - " + str(polar(A1)) + "\n"
+                                                                                                         "                                                            B (k-Ohm) - " + str(
+    polar(B1)) + "\n"
+                 "                                                            C (m-mho) - " + str(polar(C1)) + "\n"
+                                                                                                               "                                                            D (Unitless) - " + str(
+    polar(D1)))
+print("7. The sending end voltage in kV                          : " + str(VS))
+print("8. The sending end current in A                           : " + str(IS))
+print("9. The voltage regulation                                 : " + str(V_REG) + " %")
+print("10. The power loss in the line in MW                      : " + str(P_LOSS))
+print("11. The transmission efficiency                           : " + str(efficiency) + " %")
+print("12. The centre of sending end circle diagram (" + str(d1) + "," + str(d2) + ") and radius is " + str(k))
+print("13. The centre of receiving end circle diagram (" + str(c1) + "," + str(c2) + ") and radius is " + str(k))
+
+fig, ax = plt.subplots()
+ax.set(xlim=(-5 * k, 5 * k), ylim=(-5 * k, 5 * k))
+circle1 = plt.Circle((d1, d2), k, color='r', fill=False, linewidth=2)
+circle2 = plt.Circle((c1, c2), k, color='blue', fill=False, linewidth=2)
+ax.add_artist(circle1)
+ax.add_artist(circle2)
+plt.legend([circle1, circle2], ["Sending end circle", "Receiving end circle"])
+plt.show()
